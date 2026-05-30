@@ -1,0 +1,29 @@
+.venv
+**/.venv
+__pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+**/.pytest_cache
+.git
+.gitignore
+*.mov
+*.pages
+frontend/node_modules
+frontend/dist
+frontend/tsconfig.tsbuildinfo
+data/*
+!data/testset2.pdf
+backend/tests
+**/.DS_Store
+# Design docs and local artifacts — not needed in the production image.
+*.docx
+*.pdf
+!data/testset2.pdf
+High Level Design_extracted.txt
+Low Level Design_extracted.txt
+Software Requirements Document_extracted.txt
+HVAC Detector.pages
+docker-compose.yml
+scripts/
+testset2.pdf

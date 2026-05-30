@@ -1,0 +1,22 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# Deploy: Dashboard → New → Blueprint → connect this repo.
+#
+# Free tier: no persistent disk — uploads and SQLite live in the container
+# filesystem and are lost on redeploy or when the instance is replaced.
+
+services:
+  - type: web
+    name: hvac-detector
+    runtime: docker
+    dockerfilePath: ./Dockerfile.render
+    dockerContext: .
+    branch: main
+    autoDeployTrigger: commit
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: HVAC_DATA_DIR
+        value: /data
+      - key: PYTHONUNBUFFERED
+        value: "1"

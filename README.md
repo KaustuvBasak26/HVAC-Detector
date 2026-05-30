@@ -164,6 +164,54 @@ cd frontend && npm run build
 
 Serve `frontend/dist` with any static host; configure that host to reverse-proxy `/api` and `/files` to the FastAPI server (same pattern as `frontend/nginx.conf` in the Docker image), or set the frontend to call the API’s absolute origin.
 
+## Deploy on Render
+
+This repo includes a [Render Blueprint](https://render.com/docs/blueprint-spec) (`render.yaml`) that deploys **one Free-tier web service**: the API and the built React UI on the same URL (FastAPI serves `static/` from the production Docker image).
+
+### Steps
+
+1. Push the repo to GitHub on the **`main`** branch (Render deploys from `main` by default).
+2. In the [Render Dashboard](https://dashboard.render.com/), click **New → Blueprint**.
+3. Connect the GitHub repo and approve the `render.yaml` spec (service name: `hvac-detector`).
+4. Wait for the Docker build and deploy. Open the `*.onrender.com` URL when the service is live.
+
+Every push to **`main`** triggers a new deploy (`autoDeployTrigger: commit`). The Docker build uses the **entire repo** as context (`dockerContext: .`) and copies all of `backend/app/` and `frontend/` so changes anywhere in the application code are included.
+
+### What gets provisioned
+
+| Resource | Purpose |
+|----------|---------|
+| Web service, Free plan (`Dockerfile.render`) | FastAPI on `$PORT`, UI at `/`, health at `/api/health` |
+| Ephemeral `/data` in the container | SQLite DB, uploaded PDFs, job outputs (see below) |
+
+### Free tier behavior
+
+- **No cost** for the web service itself within Render’s Free allowance (750 instance-hours/month).
+- **No persistent disk** — `HVAC_DATA_DIR=/data` uses the container filesystem. Uploads, job history, and exports are **lost on redeploy** or when Render replaces the instance.
+- **Cold starts** — the service sleeps after ~15 minutes of idle traffic; the first request after sleep can take 30–60 seconds.
+- **512 MB RAM** — enough for typical PDFs; very large sheets or many concurrent jobs may run out of memory. Upgrade to Starter if needed.
+
+To keep data across deploys later, add a [persistent disk](https://render.com/docs/disks) on a paid plan and mount it at `/data` in `render.yaml`.
+
+### Manual deploy (without Blueprint)
+
+Create a **Web Service → Docker**, set:
+
+- **Plan:** Free
+- **Dockerfile path:** `Dockerfile.render`
+- **Health check path:** `/api/health`
+- **Environment:** `HVAC_DATA_DIR=/data`
+- **Do not attach a disk** on Free (not supported).
+
+Local smoke test of the production image:
+
+```bash
+docker build -f Dockerfile.render -t hvac-detector:render .
+docker run --rm -p 8000:8000 -e PORT=8000 hvac-detector:render
+```
+
+Open [http://localhost:8000](http://localhost:8000) for the UI and [http://localhost:8000/api/health](http://localhost:8000/api/health) for the health check.
+
 ## Limitations
 
 Detection uses **classical image processing** (not a trained model), so results depend on line quality, cropping, and drawing style. Supply vs. return typing is heuristic. For best results on a specific sheet set, tune parameters or extend the pipeline in `backend/app/processing/`.

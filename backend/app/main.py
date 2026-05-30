@@ -1,5 +1,8 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
 from app.core.config import settings
@@ -21,3 +24,8 @@ app.include_router(router)
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+_STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+if _STATIC_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=_STATIC_DIR, html=True), name="frontend")
