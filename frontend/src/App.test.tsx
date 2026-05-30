@@ -8,11 +8,18 @@ describe("App", () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ jobs: [] }),
+        json: () =>
+          Promise.resolve({
+            maxUploadSizeMb: 10,
+            demoMode: false,
+            lowMemoryMode: false,
+            samples: [],
+          }),
       } as Response),
     );
 
     render(<App />);
-    expect(screen.getByText("Duct Analyzer")).toBeTruthy();
+    expect(screen.getByText("HVAC Duct Analyzer")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: /HVAC duct detection/i })).toBeTruthy();
   });
 });

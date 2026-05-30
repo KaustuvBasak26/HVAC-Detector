@@ -16,6 +16,7 @@ import {
 import { secureDeployment } from "./secureDeployment";
 import { clearDemoSession, jobViewerHeaders, releaseDemoJob } from "./jobApi";
 import { DEFAULT_SAMPLE, fetchSamplePdfFile, fetchUploadLimits } from "./samplePdf";
+import { getStoredTheme, toggleTheme, type Theme } from "./theme";
 
 type JobStatus = {
   jobId: string;
@@ -81,15 +82,19 @@ function PreviewZoomReadout() {
   return <span className="preview-zoom-readout">{Math.round(scale * 100)}%</span>;
 }
 
-function IconMark() {
+function IconSun() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M4 19V5a1 1 0 011-1h12a1 1 0 011 1v14l-7-3.5L4 19z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconMoon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -302,6 +307,7 @@ export default function App() {
   const [viewerToken, setViewerToken] = useState<string | null>(null);
   const [sampleBusy, setSampleBusy] = useState(false);
   const [maxUploadSizeMb, setMaxUploadSizeMb] = useState(100);
+  const [theme, setTheme] = useState<Theme>(() => getStoredTheme());
 
   useEffect(() => {
     void fetchUploadLimits().then((limits) => setMaxUploadSizeMb(limits.maxUploadSizeMb));
@@ -609,19 +615,42 @@ export default function App() {
   const statusPillClass = busy ? "pill pill--busy" : "pill pill--live";
   const statusPillLabel = busy ? "Processing" : "Ready";
 
+  function onToggleTheme() {
+    setTheme((current) => toggleTheme(current));
+  }
+
   return (
     <div className={secureDeployment ? "shell shell--protected" : "shell"}>
       <header className="topbar">
         <div className="topbar__brand">
-          <div className="topbar__mark" aria-hidden>
-            <IconMark />
-          </div>
+          <a
+            className="topbar__monogram"
+            href="https://kaustuvbasak.com/"
+            title="Kaustuv Basak — Portfolio"
+          >
+            KB
+          </a>
           <div className="topbar__titles">
-            <p className="topbar__product">Duct Analyzer</p>
-            <p className="topbar__tagline">HVAC takeoff · mechanical plans</p>
+            <p className="topbar__product">HVAC Duct Analyzer</p>
+            <p className="topbar__tagline">
+              Live project ·{" "}
+              <a href="https://kaustuvbasak.com/" target="_blank" rel="noopener noreferrer">
+                Kaustuv Basak
+              </a>
+            </p>
           </div>
         </div>
         <div className="topbar__right">
+          <span className="live-badge">Live</span>
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={onToggleTheme}
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            title={theme === "dark" ? "Light mode" : "Dark mode"}
+          >
+            {theme === "dark" ? <IconSun /> : <IconMoon />}
+          </button>
           <span className={statusPillClass}>
             <span className="pill__dot" />
             {statusPillLabel}
@@ -651,13 +680,21 @@ export default function App() {
         </aside>
 
         <main className="main">
-          <header className="page-header" ref={ingestRef} id="workspace-ingest">
-            <h1 className="page-header__title">Mechanical drawing analysis</h1>
-            <p className="page-header__lead">
-              Upload your own mechanical HVAC / MEP plan PDF, or try the bundled{" "}
-              <strong>testset2.pdf</strong> sample below. Supported type:{" "}
-              <strong>PDF only</strong> (max {maxUploadSizeMb}&nbsp;MB).
+          <header className="hero" ref={ingestRef} id="workspace-ingest">
+            <span className="hero__eyebrow">Interactive mechanical takeoff</span>
+            <h1 className="hero__title">HVAC duct detection on mechanical plans</h1>
+            <p className="hero__lead">
+              Upload a mechanical HVAC / MEP plan PDF, or try the bundled{" "}
+              <strong>testset2.pdf</strong> sample. The pipeline detects duct centerlines, reads
+              size labels where possible, and estimates segment lengths — max{" "}
+              <strong>{maxUploadSizeMb}&nbsp;MB</strong>, PDF only.
             </p>
+            <div className="hero__tags" aria-label="Tech stack">
+              <span className="hero__tag">FastAPI</span>
+              <span className="hero__tag">React</span>
+              <span className="hero__tag">OpenCV</span>
+              <span className="hero__tag">PyMuPDF</span>
+            </div>
           </header>
 
           <section className="card upload-helper" aria-labelledby="upload-helper-title">
@@ -1016,6 +1053,20 @@ export default function App() {
           </section>
         </main>
       </div>
+
+      <footer className="site-footer">
+        <p>
+          Built by{" "}
+          <a href="https://kaustuvbasak.com/" target="_blank" rel="noopener noreferrer">
+            Kaustuv Basak
+          </a>
+          {" · "}
+          <a href="https://kaustuvbasak.com/#projects" target="_blank" rel="noopener noreferrer">
+            Live projects
+          </a>
+        </p>
+        <p className="site-footer__muted">AI &amp; full-stack architect · Abu Dhabi · Remote</p>
+      </footer>
     </div>
   );
 }
