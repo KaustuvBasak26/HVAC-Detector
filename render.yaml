@@ -14,6 +14,9 @@ services:
     autoDeployTrigger: commit
     plan: free
     healthCheckPath: /api/health
+    # Custom domain — add DNS CNAME hvac → hvac-detector.onrender.com at your registrar, then Verify in Render Dashboard.
+    domains:
+      - hvac.kaustuvbasak.com
     envVars:
       - key: HVAC_DATA_DIR
         value: /data

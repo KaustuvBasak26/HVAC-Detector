@@ -175,6 +175,30 @@ This repo includes a [Render Blueprint](https://render.com/docs/blueprint-spec) 
 3. Connect the GitHub repo and approve the `render.yaml` spec (service name: `hvac-detector`).
 4. Wait for the Docker build and deploy. Open the `*.onrender.com` URL when the service is live.
 
+### Custom subdomain (`hvac.kaustuvbasak.com`)
+
+The blueprint declares **`hvac.kaustuvbasak.com`** as a custom domain (same pattern as [dns.kaustuvbasak.com](https://dns.kaustuvbasak.com)). To finish setup:
+
+1. **Render Dashboard** → service **hvac-detector** → **Settings** → **Custom Domains**.
+   - Confirm `hvac.kaustuvbasak.com` appears (sync the blueprint if you added it after the first deploy).
+   - Note the target hostname shown by Render (usually `hvac-detector.onrender.com`).
+
+2. **DNS** (wherever `kaustuvbasak.com` is managed — e.g. Cloudflare, same as the DNS simulator):
+
+   | Type | Name | Value | Proxy |
+   |------|------|-------|-------|
+   | `CNAME` | `hvac` | `hvac-detector.onrender.com` | DNS only (gray cloud) recommended |
+
+   Remove any `AAAA` record for `hvac` if one exists. DNS can take a few minutes to propagate.
+
+3. Back in Render, click **Verify** next to the domain. Render issues a free TLS certificate automatically.
+
+4. Open [https://hvac.kaustuvbasak.com](https://hvac.kaustuvbasak.com) and run the sample PDF.
+
+Optional: on Render **Settings → Custom Domains**, disable the default `*.onrender.com` URL once the subdomain works (`renderSubdomainPolicy: disabled` in `render.yaml`).
+
+Add the live URL to your portfolio **Live Projects** section on [kaustuvbasak.com](https://kaustuvbasak.com/#projects) (like the DNS simulator card).
+
 Every push to **`main`** triggers a new deploy (`autoDeployTrigger: commit`). The Docker build uses the **entire repo** as context (`dockerContext: .`) and copies all of `backend/app/` and `frontend/` so changes anywhere in the application code are included.
 
 ### What gets provisioned
