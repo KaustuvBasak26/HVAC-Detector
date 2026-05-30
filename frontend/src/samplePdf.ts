@@ -22,3 +22,22 @@ export async function fetchSamplePdfFile(sample: SamplePdf = DEFAULT_SAMPLE): Pr
   const blob = await response.blob();
   return new File([blob], sample.name, { type: "application/pdf" });
 }
+
+export type UploadLimits = {
+  maxUploadSizeMb: number;
+  demoMode: boolean;
+  lowMemoryMode: boolean;
+};
+
+export async function fetchUploadLimits(): Promise<UploadLimits> {
+  const response = await fetch("/api/samples");
+  if (!response.ok) {
+    return { maxUploadSizeMb: 100, demoMode: false, lowMemoryMode: false };
+  }
+  const body = (await response.json()) as Partial<UploadLimits>;
+  return {
+    maxUploadSizeMb: typeof body.maxUploadSizeMb === "number" ? body.maxUploadSizeMb : 100,
+    demoMode: Boolean(body.demoMode),
+    lowMemoryMode: Boolean(body.lowMemoryMode),
+  };
+}

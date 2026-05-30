@@ -2,8 +2,7 @@
 #
 # Deploy: Dashboard → New → Blueprint → connect this repo.
 #
-# Free tier: no persistent disk — uploads and SQLite live in the container
-# filesystem and are lost on redeploy or when the instance is replaced.
+# Free tier: 512 MB RAM — low-memory mode auto-enables demo cleanup and a 10 MB upload cap.
 
 services:
   - type: web
@@ -25,11 +24,13 @@ services:
       - key: HVAC_LOW_MEMORY_MODE
         value: "true"
       - key: HVAC_RENDER_DPI
-        value: "120"
+        value: "96"
       - key: HVAC_LOW_MEMORY_MAX_DPI
-        value: "120"
-      - key: HVAC_DEMO_MODE
-        value: "true"
+        value: "96"
+      - key: HVAC_LOW_MEMORY_MAX_SIDE_PX
+        value: "2400"
+      - key: HVAC_DEMO_MAX_UPLOAD_SIZE_MB
+        value: "10"
       - key: HVAC_VIEWER_TOKEN_TTL_SECONDS
         value: "7200"
       - key: PYTHONUNBUFFERED

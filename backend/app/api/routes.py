@@ -6,7 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Up
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
+from app.core.config import settings, effective_max_upload_size_mb
 from app.core.demo_cleanup import purge_demo_storage, release_job_storage
 from app.core.samples import (
     SAMPLE_PDF_DESCRIPTION,
@@ -55,7 +55,9 @@ def list_samples():
     available = path.is_file()
     return {
         "supportedTypes": ["application/pdf"],
-        "maxUploadSizeMb": settings.max_upload_size_mb,
+        "maxUploadSizeMb": effective_max_upload_size_mb(),
+        "demoMode": settings.demo_mode,
+        "lowMemoryMode": settings.low_memory_mode,
         "samples": [
             {
                 "id": SAMPLE_PDF_ID,
@@ -99,11 +101,14 @@ async def upload_file(
     user_id = ensure_local_user(db)
     purge_demo_storage(db)
     raw = await file.read()
-    max_b = settings.max_upload_size_mb * 1024 * 1024
+    max_b = effective_max_upload_size_mb() * 1024 * 1024
     if len(raw) > max_b:
         raise HTTPException(
             status_code=400,
-            detail={"code": "FILE_TOO_LARGE", "message": "File exceeds upload limit."},
+            detail={
+                "code": "FILE_TOO_LARGE",
+                "message": f"File exceeds upload limit ({effective_max_upload_size_mb()} MB).",
+            },
         )
     file_id = str(uuid.uuid4())
     sub = settings.data_dir / "inputs" / file_id

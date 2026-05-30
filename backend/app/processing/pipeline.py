@@ -9,7 +9,7 @@ import cv2
 import fitz
 import numpy as np
 
-from app.core.config import settings, effective_render_dpi
+from app.core.config import settings, effective_page_render_dpi
 from app.processing.dimension_parser import ParsedDimension
 from app.processing.duct_measure_annotate import (
     draw_measure_overlay_bgr,
@@ -105,7 +105,6 @@ def run_pipeline_on_pdf(
             indices = indices[: settings.low_memory_max_pages]
         results: list[PagePipelineResult] = []
         total_pages = len(indices)
-        render_dpi = effective_render_dpi()
         expected_path = Path(settings.expected_annotation_png)
         bbox = _parse_screenshot_bbox(settings.refine_screenshot_page_bbox)
         refine_target = int(settings.refine_expected_png_target_page)
@@ -122,7 +121,9 @@ def run_pipeline_on_pdf(
                     pct,
                     f"Page {pos + 1} of {total_pages}: rendering and centerline overlay",
                 )
-            pr = render_page(doc, idx, render_dpi)
+            page = doc[idx]
+            page_dpi = effective_page_render_dpi(float(page.rect.width), float(page.rect.height))
+            pr = render_page(doc, idx, page_dpi)
             # NumPy/OpenCV images are (height, width, ...); keep names consistent everywhere.
             ih, iw = pr.image_bgr.shape[:2]
             page = doc[idx]
@@ -168,7 +169,7 @@ def run_pipeline_on_pdf(
                 )
 
             annotated = apply_overlay_bgr(pr.image_bgr, mask, overlay_bgr)
-            if settings.refine_draw_measure_labels:
+            if settings.refine_draw_measure_labels and not settings.low_memory_mode:
                 annotated = draw_measure_overlay_bgr(
                     annotated,
                     segments,

@@ -1,5 +1,7 @@
 from pathlib import Path
+from typing import Self
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,6 +11,7 @@ class Settings(BaseSettings):
     app_name: str = "HVAC Duct Detector API"
     data_dir: Path = Path(__file__).resolve().parents[3] / "data"
     max_upload_size_mb: int = 100
+    demo_max_upload_size_mb: int = 10
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     render_dpi: int = 220
     measurement_mode: str = "centerline"
@@ -56,13 +59,27 @@ class Settings(BaseSettings):
     viewer_token_ttl_seconds: int = 86_400
     # Render Free (512 MB): keep rasterization and exports lightweight.
     low_memory_mode: bool = False
-    low_memory_max_dpi: int = 120
+    low_memory_max_dpi: int = 96
+    low_memory_max_side_px: int = 2400
     low_memory_max_pages: int = 1
     # Demo deployments: purge uploads/artifacts aggressively; nothing kept server-side after release.
     demo_mode: bool = False
 
+    @model_validator(mode="after")
+    def _apply_render_free_profile(self) -> Self:
+        # Render Free (512 MB): always run demo cleanup + low-memory pipeline settings.
+        if self.low_memory_mode:
+            object.__setattr__(self, "demo_mode", True)
+        return self
+
 
 settings = Settings()
+
+
+def effective_max_upload_size_mb() -> int:
+    if settings.demo_mode:
+        return min(int(settings.max_upload_size_mb), int(settings.demo_max_upload_size_mb))
+    return int(settings.max_upload_size_mb)
 
 
 def effective_render_dpi() -> int:
@@ -70,3 +87,18 @@ def effective_render_dpi() -> int:
     if settings.low_memory_mode:
         return min(dpi, int(settings.low_memory_max_dpi))
     return dpi
+
+
+def effective_page_render_dpi(page_width_pt: float, page_height_pt: float) -> int:
+    """Cap raster DPI so the longest page side stays within ``low_memory_max_side_px``."""
+    dpi = effective_render_dpi()
+    if not settings.low_memory_mode:
+        return dpi
+    max_side = int(settings.low_memory_max_side_px)
+    if max_side <= 0:
+        return dpi
+    zoom = dpi / 72.0
+    longest_px = max(page_width_pt * zoom, page_height_pt * zoom)
+    if longest_px <= max_side:
+        return dpi
+    return max(72, int(dpi * max_side / longest_px))

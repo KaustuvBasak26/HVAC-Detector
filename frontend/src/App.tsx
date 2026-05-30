@@ -15,7 +15,7 @@ import {
 } from "./jobUtils";
 import { secureDeployment } from "./secureDeployment";
 import { clearDemoSession, jobViewerHeaders, releaseDemoJob } from "./jobApi";
-import { DEFAULT_SAMPLE, fetchSamplePdfFile } from "./samplePdf";
+import { DEFAULT_SAMPLE, fetchSamplePdfFile, fetchUploadLimits } from "./samplePdf";
 
 type JobStatus = {
   jobId: string;
@@ -301,55 +301,95 @@ export default function App() {
   const [previewObjectUrl, setPreviewObjectUrl] = useState<string | null>(null);
   const [viewerToken, setViewerToken] = useState<string | null>(null);
   const [sampleBusy, setSampleBusy] = useState(false);
+  const [maxUploadSizeMb, setMaxUploadSizeMb] = useState(100);
+
+  useEffect(() => {
+    void fetchUploadLimits().then((limits) => setMaxUploadSizeMb(limits.maxUploadSizeMb));
+  }, []);
+
+  function acceptPdfFile(candidate: File | null | undefined): File | null {
+    if (!candidate) return null;
+    const maxBytes = maxUploadSizeMb * 1024 * 1024;
+    if (candidate.size > maxBytes) {
+      setMsg(`File is too large (max ${maxUploadSizeMb} MB). Choose a smaller PDF.`);
+      return null;
+    }
+    return candidate;
+  }
 
   const previewCardRef = useRef<HTMLElement | null>(null);
   const ingestRef = useRef<HTMLElement | null>(null);
   const registerRef = useRef<HTMLElement | null>(null);
+  const pollFailRef = useRef(0);
 
   const poll = useCallback(async (id: string, token: string | null) => {
-    const headers = jobViewerHeaders(token);
-    const r = await fetch(`/api/jobs/${id}`, { headers });
-    if (r.status === 404) {
+    try {
+      const headers = jobViewerHeaders(token);
+      const r = await fetch(`/api/jobs/${id}`, { headers });
+      if (r.status === 404) {
+        pollFailRef.current = 0;
+        setBusy(false);
+        setMsg(
+          "Analysis was interrupted — the server restarted and lost in-progress work. Please run the analysis again.",
+        );
+        return true;
+      }
+      if (r.status === 401) {
+        pollFailRef.current = 0;
+        setBusy(false);
+        setMsg("This analysis session expired. Please run the analysis again.");
+        return true;
+      }
+      if (!r.ok) {
+        const transient = r.status === 502 || r.status === 503 || r.status === 504 || r.status === 429;
+        if (transient && pollFailRef.current < 12) {
+          pollFailRef.current += 1;
+          return false;
+        }
+        pollFailRef.current = 0;
+        setBusy(false);
+        setMsg(
+          r.status >= 500
+            ? "Server error during analysis. The drawing may be too large for the free tier — try the sample PDF or a smaller file."
+            : "Could not read job status. Please try again.",
+        );
+        return true;
+      }
+      pollFailRef.current = 0;
+      const j = (await r.json()) as JobStatus;
+      setStatus(j);
+      if (j.status === "completed") {
+        const rr = await fetch(`/api/jobs/${id}/result`, { headers });
+        const res = (await rr.json()) as Result & { jobId: string; status: string };
+        setPreviewNonce(Date.now());
+        setResult({
+          previewUrl: res.previewUrl,
+          annotatedPdfUrl: res.annotatedPdfUrl,
+          exports: res.exports || {},
+          summary: (res as { summary?: Result["summary"] }).summary,
+        });
+        const sr = await fetch(`/api/jobs/${id}/segments`, { headers });
+        const sj = (await sr.json()) as { segments: SegmentRow[] };
+        setSegments(sj.segments || []);
+        setBusy(false);
+        return true;
+      }
+      if (j.status === "failed") {
+        setBusy(false);
+        setMsg(j.error?.message || "Job failed");
+        return true;
+      }
+      return false;
+    } catch {
+      if (pollFailRef.current < 12) {
+        pollFailRef.current += 1;
+        return false;
+      }
+      pollFailRef.current = 0;
       setBusy(false);
-      setMsg(
-        "Analysis was interrupted — the server restarted and lost in-progress work. Please run the analysis again.",
-      );
+      setMsg("Lost connection while checking job status. Please try again.");
       return true;
     }
-    if (r.status === 401) {
-      setBusy(false);
-      setMsg("This analysis session expired. Please run the analysis again.");
-      return true;
-    }
-    if (!r.ok) {
-      setBusy(false);
-      setMsg("Could not read job status. Please try again.");
-      return true;
-    }
-    const j = (await r.json()) as JobStatus;
-    setStatus(j);
-    if (j.status === "completed") {
-      const rr = await fetch(`/api/jobs/${id}/result`, { headers });
-      const res = (await rr.json()) as Result & { jobId: string; status: string };
-      setPreviewNonce(Date.now());
-      setResult({
-        previewUrl: res.previewUrl,
-        annotatedPdfUrl: res.annotatedPdfUrl,
-        exports: res.exports || {},
-        summary: (res as { summary?: Result["summary"] }).summary,
-      });
-      const sr = await fetch(`/api/jobs/${id}/segments`, { headers });
-      const sj = (await sr.json()) as { segments: SegmentRow[] };
-      setSegments(sj.segments || []);
-      setBusy(false);
-      return true;
-    }
-    if (j.status === "failed") {
-      setBusy(false);
-      setMsg(j.error?.message || "Job failed");
-      return true;
-    }
-    return false;
   }, []);
 
   useEffect(() => {
@@ -394,6 +434,7 @@ export default function App() {
 
   useEffect(() => {
     if (!jobId || !busy) return;
+    if (secureDeployment && !viewerToken) return;
     let cancelled = false;
     const tick = async () => {
       if (cancelled) return;
@@ -482,8 +523,13 @@ export default function App() {
     setPreviewObjectUrl(null);
     setViewerToken(null);
     setJobId(null);
+    pollFailRef.current = 0;
     if (!file) {
       setMsg("Choose a PDF file first (click the dashed area), then click Run analysis.");
+      return;
+    }
+    if (file.size > maxUploadSizeMb * 1024 * 1024) {
+      setMsg(`File is too large (max ${maxUploadSizeMb} MB). Choose a smaller PDF.`);
       return;
     }
     setBusy(true);
@@ -598,7 +644,7 @@ export default function App() {
             <p className="page-header__lead">
               Upload your own mechanical HVAC / MEP plan PDF, or try the bundled{" "}
               <strong>testset2.pdf</strong> sample below. Supported type:{" "}
-              <strong>PDF only</strong> (max 100&nbsp;MB).
+              <strong>PDF only</strong> (max {maxUploadSizeMb}&nbsp;MB).
             </p>
           </header>
 
@@ -631,7 +677,7 @@ export default function App() {
             </div>
             <p className="upload-helper__meta">
               Sample: {DEFAULT_SAMPLE.name} · Supported uploads: <code>.pdf</code> (
-              <code>application/pdf</code>)
+              <code>application/pdf</code>, max {maxUploadSizeMb}&nbsp;MB)
             </p>
           </section>
 
@@ -641,7 +687,10 @@ export default function App() {
                 className="sr-only-input"
                 type="file"
                 accept="application/pdf,.pdf"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                onChange={(e) => {
+                  setMsg(null);
+                  setFile(acceptPdfFile(e.target.files?.[0] ?? null));
+                }}
                 aria-label="Choose your own PDF file"
               />
               <span>{file ? file.name : "Choose your PDF…"}</span>

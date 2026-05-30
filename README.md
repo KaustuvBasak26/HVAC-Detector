@@ -189,9 +189,10 @@ Every push to **`main`** triggers a new deploy (`autoDeployTrigger: commit`). Th
 - **No cost** for the web service itself within Render’s Free allowance (750 instance-hours/month).
 - **No persistent disk** — `HVAC_DATA_DIR=/data` uses the container filesystem. Uploads, job history, and exports are **lost on redeploy** or when Render replaces the instance.
 - **Cold starts** — the service sleeps after ~15 minutes of idle traffic; the first request after sleep can take 30–60 seconds.
-- **512 MB RAM** — OpenCV/PDF work is memory-heavy. The Render blueprint sets `HVAC_LOW_MEMORY_MODE=true` and `HVAC_RENDER_DPI=120` so `testset2.pdf` fits; very large sheets may still OOM on Free. Upgrade to Starter if needed.
+- **512 MB RAM** — OpenCV/PDF work is memory-heavy. The Render blueprint sets `HVAC_LOW_MEMORY_MODE=true`, caps rasterization at **96 DPI** and **2400 px** on the longest side, and skips heavy label overlays so `testset2.pdf` fits; very large sheets may still OOM on Free. Upgrade to Starter if needed.
 - **Ephemeral jobs** — if the instance restarts mid-analysis (OOM or deploy), in-progress jobs are lost; the UI will ask you to run again.
-- **Demo mode** — `HVAC_DEMO_MODE=true` purges prior uploads on each new run, deletes source PDFs after processing, and the UI releases server-side artifacts once the preview is loaded (results stay in the browser only until you start a new analysis).
+- **Low memory auto-enables demo mode** — When `HVAC_LOW_MEMORY_MODE=true`, demo cleanup runs automatically (no separate `HVAC_DEMO_MODE` needed): prior uploads are purged on each new run, source PDFs are deleted after processing, and the UI releases server-side artifacts once the preview loads.
+- **Upload cap on demo** — Demo deployments limit uploads to **10 MB** (`HVAC_DEMO_MAX_UPLOAD_SIZE_MB`); the UI reads the limit from `GET /api/samples`.
 
 ### Production hardening (enabled on Render)
 

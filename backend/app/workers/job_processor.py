@@ -56,10 +56,19 @@ def process_job_sync(
         out_fmt.insert(0, "png")
 
     def _report_progress(pct: int, step: str) -> None:
-        job.progress_percent = min(100, max(0, int(pct)))
-        job.current_step = step
-        job.updated_at = datetime.utcnow()
-        db.commit()
+        from app.core.database import SessionLocal
+
+        prog_db = SessionLocal()
+        try:
+            row = prog_db.query(Job).filter(Job.id == job_id).first()
+            if not row:
+                return
+            row.progress_percent = min(100, max(0, int(pct)))
+            row.current_step = step
+            row.updated_at = datetime.utcnow()
+            prog_db.commit()
+        finally:
+            prog_db.close()
 
     try:
         results = run_pipeline_on_pdf(

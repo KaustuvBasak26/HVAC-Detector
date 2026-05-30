@@ -117,7 +117,7 @@ def test_sample_pdf_unknown_id(client):
 
 
 def test_demo_mode_purges_on_upload(client, minimal_pdf_path, monkeypatch):
-    monkeypatch.setenv("HVAC_DEMO_MODE", "true")
+    monkeypatch.setenv("HVAC_LOW_MEMORY_MODE", "true")
     from importlib import reload
 
     import app.api.routes as routes_mod
@@ -129,6 +129,7 @@ def test_demo_mode_purges_on_upload(client, minimal_pdf_path, monkeypatch):
     reload(demo_mod)
     reload(routes_mod)
     reload(main_mod)
+    assert config_mod.settings.demo_mode is True
 
     with TestClient(main_mod.app) as demo_client:
         with open(minimal_pdf_path, "rb") as f:
@@ -149,9 +150,43 @@ def test_demo_mode_purges_on_upload(client, minimal_pdf_path, monkeypatch):
         assert up2.status_code == 200
         assert not path1.is_file()
 
-    monkeypatch.delenv("HVAC_DEMO_MODE", raising=False)
+    monkeypatch.delenv("HVAC_LOW_MEMORY_MODE", raising=False)
     reload(config_mod)
     reload(demo_mod)
+    reload(routes_mod)
+    reload(main_mod)
+
+
+def test_demo_upload_size_limit(monkeypatch):
+    monkeypatch.setenv("HVAC_LOW_MEMORY_MODE", "true")
+    monkeypatch.setenv("HVAC_DEMO_MAX_UPLOAD_SIZE_MB", "1")
+    from importlib import reload
+
+    import app.api.routes as routes_mod
+    import app.core.config as config_mod
+    import app.main as main_mod
+
+    reload(config_mod)
+    reload(routes_mod)
+    reload(main_mod)
+
+    with TestClient(main_mod.app) as demo_client:
+        oversized = b"x" * (2 * 1024 * 1024)
+        r = demo_client.post(
+            "/api/files/upload",
+            files={"file": ("big.pdf", io.BytesIO(oversized), "application/pdf")},
+        )
+        assert r.status_code == 400
+        assert r.json()["detail"]["code"] == "FILE_TOO_LARGE"
+
+        listing = demo_client.get("/api/samples")
+        assert listing.status_code == 200
+        assert listing.json()["maxUploadSizeMb"] == 1
+        assert listing.json()["demoMode"] is True
+
+    monkeypatch.delenv("HVAC_LOW_MEMORY_MODE", raising=False)
+    monkeypatch.delenv("HVAC_DEMO_MAX_UPLOAD_SIZE_MB", raising=False)
+    reload(config_mod)
     reload(routes_mod)
     reload(main_mod)
 
