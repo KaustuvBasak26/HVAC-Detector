@@ -321,6 +321,7 @@ export default function App() {
   const ingestRef = useRef<HTMLElement | null>(null);
   const registerRef = useRef<HTMLElement | null>(null);
   const pollFailRef = useRef(0);
+  const previewLoadedRef = useRef<string | null>(null);
 
   const poll = useCallback(async (id: string, token: string | null) => {
     try {
@@ -394,35 +395,44 @@ export default function App() {
 
   useEffect(() => {
     const url = result?.previewUrl || null;
-    if (!secureDeployment || !url) {
-      setPreviewObjectUrl(null);
+    if (!secureDeployment || !url || !jobId) {
+      if (!url) setPreviewObjectUrl(null);
       return;
     }
+    const loadKey = `${jobId}:${previewNonce}`;
+    if (previewLoadedRef.current === loadKey) return;
+
+    const token = viewerToken ?? sessionStorage.getItem(`job-viewer:${jobId}`);
+    if (!token) return;
+
     let cancelled = false;
-    let objectUrl: string | null = null;
-    const src =
-      url && jobId ? `${url}?v=${encodeURIComponent(jobId)}&n=${previewNonce}` : url;
-    fetch(src, { credentials: "same-origin", headers: jobViewerHeaders(viewerToken) })
+    const src = `${url}?v=${encodeURIComponent(jobId)}&n=${previewNonce}`;
+    fetch(src, { credentials: "same-origin", headers: jobViewerHeaders(token) })
       .then((response) => {
         if (!response.ok) throw new Error("preview unavailable");
         return response.blob();
       })
       .then(async (blob) => {
         if (cancelled) return;
-        objectUrl = URL.createObjectURL(blob);
-        setPreviewObjectUrl(objectUrl);
+        const objectUrl = URL.createObjectURL(blob);
+        previewLoadedRef.current = loadKey;
+        setPreviewObjectUrl((prev) => {
+          if (prev) URL.revokeObjectURL(prev);
+          return objectUrl;
+        });
         if (secureDeployment && jobId) {
-          await releaseDemoJob(jobId, viewerToken);
+          await releaseDemoJob(jobId, token);
           clearDemoSession(jobId);
-          setViewerToken(null);
         }
       })
       .catch(() => {
-        if (!cancelled) setPreviewObjectUrl(null);
+        if (!cancelled) {
+          setPreviewObjectUrl(null);
+          setMsg("Could not load the drawing preview. Segment data above is still available.");
+        }
       });
     return () => {
       cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [result?.previewUrl, jobId, previewNonce, viewerToken]);
 
@@ -519,6 +529,7 @@ export default function App() {
     setSegments([]);
     setStatus(null);
     clearDemoSession(jobId);
+    previewLoadedRef.current = null;
     if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
     setPreviewObjectUrl(null);
     setViewerToken(null);
@@ -593,6 +604,7 @@ export default function App() {
     : previewUrl && jobId
       ? `${previewUrl}?v=${encodeURIComponent(jobId)}&n=${previewNonce}`
       : previewUrl;
+  const previewLoading = Boolean(secureDeployment && previewUrl && jobId && !previewSrc && !busy);
 
   const statusPillClass = busy ? "pill pill--busy" : "pill pill--live";
   const statusPillLabel = busy ? "Processing" : "Ready";
@@ -766,6 +778,12 @@ export default function App() {
                 </div>
               </div>
             </div>
+          )}
+
+          {previewLoading && (
+            <section className="card preview-card" aria-busy="true">
+              <p className="section-desc">Loading drawing preview…</p>
+            </section>
           )}
 
           {previewSrc && (
