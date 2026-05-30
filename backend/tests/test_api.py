@@ -116,6 +116,46 @@ def test_sample_pdf_unknown_id(client):
     assert client.get("/api/samples/not-a-sample").status_code == 404
 
 
+def test_demo_mode_purges_on_upload(client, minimal_pdf_path, monkeypatch):
+    monkeypatch.setenv("HVAC_DEMO_MODE", "true")
+    from importlib import reload
+
+    import app.api.routes as routes_mod
+    import app.core.config as config_mod
+    import app.core.demo_cleanup as demo_mod
+    import app.main as main_mod
+
+    reload(config_mod)
+    reload(demo_mod)
+    reload(routes_mod)
+    reload(main_mod)
+
+    with TestClient(main_mod.app) as demo_client:
+        with open(minimal_pdf_path, "rb") as f:
+            raw = f.read()
+        up1 = demo_client.post(
+            "/api/files/upload",
+            files={"file": ("plan.pdf", io.BytesIO(raw), "application/pdf")},
+        )
+        assert up1.status_code == 200
+        file_id_1 = up1.json()["fileId"]
+        path1 = config_mod.settings.data_dir / "inputs" / file_id_1 / "original.pdf"
+        assert path1.is_file()
+
+        up2 = demo_client.post(
+            "/api/files/upload",
+            files={"file": ("plan2.pdf", io.BytesIO(raw), "application/pdf")},
+        )
+        assert up2.status_code == 200
+        assert not path1.is_file()
+
+    monkeypatch.delenv("HVAC_DEMO_MODE", raising=False)
+    reload(config_mod)
+    reload(demo_mod)
+    reload(routes_mod)
+    reload(main_mod)
+
+
 @pytest.fixture
 def secure_client(monkeypatch):
     monkeypatch.setenv("HVAC_SECURE_DEPLOYMENT", "true")

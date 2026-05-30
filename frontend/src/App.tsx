@@ -14,7 +14,7 @@ import {
   type SortKey,
 } from "./jobUtils";
 import { secureDeployment } from "./secureDeployment";
-import { jobViewerHeaders } from "./jobApi";
+import { clearDemoSession, jobViewerHeaders, releaseDemoJob } from "./jobApi";
 import { DEFAULT_SAMPLE, fetchSamplePdfFile } from "./samplePdf";
 
 type JobStatus = {
@@ -367,10 +367,15 @@ export default function App() {
         if (!response.ok) throw new Error("preview unavailable");
         return response.blob();
       })
-      .then((blob) => {
+      .then(async (blob) => {
         if (cancelled) return;
         objectUrl = URL.createObjectURL(blob);
         setPreviewObjectUrl(objectUrl);
+        if (secureDeployment && jobId) {
+          await releaseDemoJob(jobId, viewerToken);
+          clearDemoSession(jobId);
+          setViewerToken(null);
+        }
       })
       .catch(() => {
         if (!cancelled) setPreviewObjectUrl(null);
@@ -472,6 +477,9 @@ export default function App() {
     setResult(null);
     setSegments([]);
     setStatus(null);
+    clearDemoSession(jobId);
+    if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+    setPreviewObjectUrl(null);
     setViewerToken(null);
     setJobId(null);
     if (!file) {
@@ -495,6 +503,7 @@ export default function App() {
         return;
       }
       const uj = (await up.json()) as { fileId: string };
+      if (secureDeployment) setFile(null);
       const cr = await fetch("/api/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     low_memory_mode: bool = False
     low_memory_max_dpi: int = 120
     low_memory_max_pages: int = 1
+    # Demo deployments: purge uploads/artifacts aggressively; nothing kept server-side after release.
+    demo_mode: bool = False
 
 
 settings = Settings()

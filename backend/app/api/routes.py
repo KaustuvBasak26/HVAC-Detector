@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.demo_cleanup import purge_demo_storage, release_job_storage
 from app.core.samples import (
     SAMPLE_PDF_DESCRIPTION,
     SAMPLE_PDF_FILENAME,
@@ -96,6 +97,7 @@ async def upload_file(
             detail={"code": "INVALID_FILE_TYPE", "message": "Only PDF files are supported."},
         )
     user_id = ensure_local_user(db)
+    purge_demo_storage(db)
     raw = await file.read()
     max_b = settings.max_upload_size_mb * 1024 * 1024
     if len(raw) > max_b:
@@ -107,7 +109,9 @@ async def upload_file(
     sub = settings.data_dir / "inputs" / file_id
     sub.mkdir(parents=True, exist_ok=True)
     dest = sub / "original.pdf"
+    size_bytes = len(raw)
     dest.write_bytes(raw)
+    del raw
 
     import fitz
 
@@ -128,7 +132,7 @@ async def upload_file(
         user_id=user_id,
         original_name=file.filename,
         storage_key=key,
-        size_bytes=len(raw),
+        size_bytes=size_bytes,
         page_count=n,
     )
     db.add(rec)
@@ -317,6 +321,16 @@ def job_preview(
             "X-Robots-Tag": "noindex, nofollow, noarchive",
         },
     )
+
+
+@router.post("/api/jobs/{job_id}/release")
+def release_job(
+    job_id: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_job_viewer),
+):
+    released = release_job_storage(db, job_id)
+    return {"released": released}
 
 
 @router.get("/files/{full_path:path}")

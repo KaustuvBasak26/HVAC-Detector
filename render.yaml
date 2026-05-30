@@ -28,5 +28,9 @@ services:
         value: "120"
       - key: HVAC_LOW_MEMORY_MAX_DPI
         value: "120"
+      - key: HVAC_DEMO_MODE
+        value: "true"
+      - key: HVAC_VIEWER_TOKEN_TTL_SECONDS
+        value: "7200"
       - key: PYTHONUNBUFFERED
         value: "1"

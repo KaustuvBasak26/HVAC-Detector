@@ -191,6 +191,7 @@ Every push to **`main`** triggers a new deploy (`autoDeployTrigger: commit`). Th
 - **Cold starts** — the service sleeps after ~15 minutes of idle traffic; the first request after sleep can take 30–60 seconds.
 - **512 MB RAM** — OpenCV/PDF work is memory-heavy. The Render blueprint sets `HVAC_LOW_MEMORY_MODE=true` and `HVAC_RENDER_DPI=120` so `testset2.pdf` fits; very large sheets may still OOM on Free. Upgrade to Starter if needed.
 - **Ephemeral jobs** — if the instance restarts mid-analysis (OOM or deploy), in-progress jobs are lost; the UI will ask you to run again.
+- **Demo mode** — `HVAC_DEMO_MODE=true` purges prior uploads on each new run, deletes source PDFs after processing, and the UI releases server-side artifacts once the preview is loaded (results stay in the browser only until you start a new analysis).
 
 ### Production hardening (enabled on Render)
 

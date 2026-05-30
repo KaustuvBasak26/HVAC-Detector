@@ -5,6 +5,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.demo_cleanup import delete_uploaded_pdf, purge_demo_storage
 from app.models.db_models import DuctSegment, FileRecord, Job, JobOutput, User
 from app.processing.dimension_parser import ParsedDimension
 from app.processing.pipeline import PagePipelineResult, run_pipeline_on_pdf, write_pipeline_outputs
@@ -71,9 +72,13 @@ def process_job_sync(
     except ValueError as e:
         code = str(e) if str(e) in ("invalid_pdf",) else "unexpected_internal_error"
         _fail(db, job, code, str(e))
+        if file_rec:
+            delete_uploaded_pdf(file_rec.storage_key)
         return
     except Exception as e:
         _fail(db, job, "duct_detection_failed", str(e))
+        if file_rec:
+            delete_uploaded_pdf(file_rec.storage_key)
         return
 
     job.progress_percent = 85
@@ -139,7 +144,8 @@ def process_job_sync(
     job.completed_at = datetime.utcnow()
     job.updated_at = datetime.utcnow()
     db.commit()
-    del results
+    delete_uploaded_pdf(file_rec.storage_key)
+    del results, all_segments, all_labels, all_lengths, artifact_keys
     gc.collect()
 
 
