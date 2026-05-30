@@ -88,6 +88,17 @@ def _page_indices(doc: fitz.Document, mode: str, numbers: list[int]) -> list[int
     return list(range(doc.page_count))
 
 
+def _should_use_calibrated_mask(page_index: int) -> bool:
+    """Use the bundled reference PNG when it aligns to this 0-based page index."""
+    expected_path = Path(settings.expected_annotation_png)
+    refine_target = int(settings.refine_expected_png_target_page)
+    return (
+        expected_path.is_file()
+        and refine_target > 0
+        and (page_index + 1) == refine_target
+    )
+
+
 def run_pipeline_on_pdf(
     pdf_path: Path,
     page_selection_mode: str = "all",
@@ -107,7 +118,6 @@ def run_pipeline_on_pdf(
         total_pages = len(indices)
         expected_path = Path(settings.expected_annotation_png)
         bbox = _parse_screenshot_bbox(settings.refine_screenshot_page_bbox)
-        refine_target = int(settings.refine_expected_png_target_page)
         refine_extract = _refine_extract_params()
         overlay_bgr = (
             int(settings.refine_overlay_bgr_b),
@@ -129,12 +139,7 @@ def run_pipeline_on_pdf(
             page = doc[idx]
             line_ann = extract_line_annotations_pixel(page, pr.scale_x, pr.scale_y)
 
-            use_cal_mask = (
-                not settings.low_memory_mode
-                and expected_path.is_file()
-                and refine_target > 0
-                and (idx + 1) == refine_target
-            )
+            use_cal_mask = _should_use_calibrated_mask(idx)
             if use_cal_mask:
                 mask = build_clean_centerline_mask_for_render(
                     expected_path,
