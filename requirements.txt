@@ -1,0 +1,2 @@
+# Install from repo root so the active .venv matches backend deps (single venv workflow).
+-r backend/requirements.txt
