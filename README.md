@@ -198,6 +198,7 @@ Every push to **`main`** triggers a new deploy (`autoDeployTrigger: commit`). Th
 | Protection | Effect |
 |------------|--------|
 | No `/files/...` URLs | Direct file paths are disabled; preview is served only via `/api/jobs/{jobId}/preview` |
+| Job viewer tokens | After creating a job, all job reads require `X-Job-Viewer-Token` (returned once in the create-job response) |
 | No export downloads | PDF / JSON / CSV download links are hidden in the UI |
 | No API docs | `/docs`, `/redoc`, and `/openapi.json` return 404 |
 | No admin API | `/api/admin/jobs` returns 404 |

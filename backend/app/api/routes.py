@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import assert_secure_job_output, secure_response_headers
+from app.core.security import assert_job_output_path, resolve_data_file, secure_response_headers
+from app.core.viewer_token import create_viewer_token
+from app.api.deps import require_job_viewer
 from app.models.db_models import DuctSegment, FileRecord, Job, JobOutput
 from app.schemas.api import (
     JobCreateRequest,
@@ -122,11 +124,19 @@ def create_job(
         list(body.pageNumbers or []),
         out_fmt,
     )
-    return JobCreateResponse(jobId=job_id, status="queued")
+    return JobCreateResponse(
+        jobId=job_id,
+        status="queued",
+        viewerToken=create_viewer_token(job_id) if settings.secure_deployment else None,
+    )
 
 
 @router.get("/api/jobs/{job_id}", response_model=JobStatusResponse)
-def get_job(job_id: str, db: Session = Depends(get_db)) -> JobStatusResponse:
+def get_job(
+    job_id: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_job_viewer),
+) -> JobStatusResponse:
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND"})
@@ -146,7 +156,11 @@ def get_job(job_id: str, db: Session = Depends(get_db)) -> JobStatusResponse:
 
 
 @router.get("/api/jobs/{job_id}/result", response_model=JobResultResponse)
-def get_result(job_id: str, db: Session = Depends(get_db)) -> JobResultResponse:
+def get_result(
+    job_id: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_job_viewer),
+) -> JobResultResponse:
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND"})
@@ -192,7 +206,16 @@ def get_result(job_id: str, db: Session = Depends(get_db)) -> JobResultResponse:
 
 
 @router.get("/api/jobs/{job_id}/segments", response_model=SegmentsListResponse)
-def get_segments(job_id: str, db: Session = Depends(get_db)) -> SegmentsListResponse:
+def get_segments(
+    job_id: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_job_viewer),
+) -> SegmentsListResponse:
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND"})
+    if settings.secure_deployment and job.status != "completed":
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND"})
     rows = db.query(DuctSegment).filter(DuctSegment.job_id == job_id).all()
     items = [
         SegmentItem(
@@ -211,7 +234,11 @@ def get_segments(job_id: str, db: Session = Depends(get_db)) -> SegmentsListResp
 
 
 @router.get("/api/jobs/{job_id}/preview")
-def job_preview(job_id: str, db: Session = Depends(get_db)):
+def job_preview(
+    job_id: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_job_viewer),
+):
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job or job.status != "completed":
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND"})
@@ -222,11 +249,14 @@ def job_preview(job_id: str, db: Session = Depends(get_db)):
     png_key = outputs.get("annotated_png")
     if not png_key:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND"})
-    path = assert_secure_job_output(job_id, png_key)
+    path = assert_job_output_path(job_id, png_key)
     return FileResponse(
         path,
         media_type="image/png",
-        headers=secure_response_headers(inline=True),
+        headers={
+            **secure_response_headers(inline=True),
+            "X-Robots-Tag": "noindex, nofollow, noarchive",
+        },
     )
 
 
@@ -234,16 +264,11 @@ def job_preview(job_id: str, db: Session = Depends(get_db)):
 def serve_file(full_path: str):
     if settings.secure_deployment:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND"})
-    if full_path.startswith("inputs/") or "/../" in full_path:
+    if not full_path.startswith("jobs/") or "/outputs/" not in full_path:
         raise HTTPException(status_code=403, detail={"code": "FORBIDDEN"})
-    path = settings.data_dir / full_path
+    path = resolve_data_file(full_path)
     if not path.is_file():
-        raise HTTPException(status_code=404)
-    # prevent path traversal
-    try:
-        path.resolve().relative_to(settings.data_dir.resolve())
-    except ValueError:
-        raise HTTPException(status_code=403)
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND"})
     media = "application/octet-stream"
     if path.suffix.lower() == ".png":
         media = "image/png"

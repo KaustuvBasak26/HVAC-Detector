@@ -52,6 +52,8 @@ class Settings(BaseSettings):
 
     # Production hardening for public deployments (Render, etc.).
     secure_deployment: bool = False
+    viewer_token_secret: str = ""
+    viewer_token_ttl_seconds: int = 86_400
 
 
 settings = Settings()

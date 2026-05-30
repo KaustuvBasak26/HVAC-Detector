@@ -20,5 +20,7 @@ services:
         value: /data
       - key: HVAC_SECURE_DEPLOYMENT
         value: "true"
+      - key: HVAC_VIEWER_TOKEN_SECRET
+        generateValue: true
       - key: PYTHONUNBUFFERED
         value: "1"

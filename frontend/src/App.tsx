@@ -14,6 +14,7 @@ import {
   type SortKey,
 } from "./jobUtils";
 import { secureDeployment } from "./secureDeployment";
+import { jobViewerHeaders } from "./jobApi";
 
 type JobStatus = {
   jobId: string;
@@ -297,17 +298,19 @@ export default function App() {
   const [activeNav, setActiveNav] = useState<NavPanel>("ingest");
   const [previewFullscreen, setPreviewFullscreen] = useState(false);
   const [previewObjectUrl, setPreviewObjectUrl] = useState<string | null>(null);
+  const [viewerToken, setViewerToken] = useState<string | null>(null);
 
   const previewCardRef = useRef<HTMLElement | null>(null);
   const ingestRef = useRef<HTMLElement | null>(null);
   const registerRef = useRef<HTMLElement | null>(null);
 
-  const poll = useCallback(async (id: string) => {
-    const r = await fetch(`/api/jobs/${id}`);
+  const poll = useCallback(async (id: string, token: string | null) => {
+    const headers = jobViewerHeaders(token);
+    const r = await fetch(`/api/jobs/${id}`, { headers });
     const j = (await r.json()) as JobStatus;
     setStatus(j);
     if (j.status === "completed") {
-      const rr = await fetch(`/api/jobs/${id}/result`);
+      const rr = await fetch(`/api/jobs/${id}/result`, { headers });
       const res = (await rr.json()) as Result & { jobId: string; status: string };
       setPreviewNonce(Date.now());
       setResult({
@@ -316,7 +319,7 @@ export default function App() {
         exports: res.exports || {},
         summary: (res as { summary?: Result["summary"] }).summary,
       });
-      const sr = await fetch(`/api/jobs/${id}/segments`);
+      const sr = await fetch(`/api/jobs/${id}/segments`, { headers });
       const sj = (await sr.json()) as { segments: SegmentRow[] };
       setSegments(sj.segments || []);
       setBusy(false);
@@ -340,7 +343,7 @@ export default function App() {
     let objectUrl: string | null = null;
     const src =
       url && jobId ? `${url}?v=${encodeURIComponent(jobId)}&n=${previewNonce}` : url;
-    fetch(src, { credentials: "same-origin" })
+    fetch(src, { credentials: "same-origin", headers: jobViewerHeaders(viewerToken) })
       .then((response) => {
         if (!response.ok) throw new Error("preview unavailable");
         return response.blob();
@@ -357,14 +360,20 @@ export default function App() {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [result?.previewUrl, jobId, previewNonce]);
+  }, [result?.previewUrl, jobId, previewNonce, viewerToken]);
+
+  useEffect(() => {
+    if (!secureDeployment || !jobId || viewerToken) return;
+    const stored = sessionStorage.getItem(`job-viewer:${jobId}`);
+    if (stored) setViewerToken(stored);
+  }, [jobId, viewerToken]);
 
   useEffect(() => {
     if (!jobId || !busy) return;
     let cancelled = false;
     const tick = async () => {
       if (cancelled) return;
-      const done = await poll(jobId);
+      const done = await poll(jobId, viewerToken);
       return done;
     };
     void tick();
@@ -377,7 +386,7 @@ export default function App() {
       cancelled = true;
       clearInterval(t);
     };
-  }, [jobId, busy, poll]);
+  }, [jobId, busy, poll, viewerToken]);
 
   useEffect(() => {
     const onFs = () => {
@@ -431,6 +440,8 @@ export default function App() {
     setResult(null);
     setSegments([]);
     setStatus(null);
+    setViewerToken(null);
+    setJobId(null);
     if (!file) {
       setMsg("Choose a PDF file first (click the dashed area), then click Run analysis.");
       return;
@@ -466,8 +477,13 @@ export default function App() {
         setBusy(false);
         return;
       }
-      const cj = (await cr.json()) as { jobId: string };
+      const cj = (await cr.json()) as { jobId: string; viewerToken?: string | null };
       setJobId(cj.jobId);
+      const token = cj.viewerToken ?? null;
+      setViewerToken(token);
+      if (secureDeployment && token) {
+        sessionStorage.setItem(`job-viewer:${cj.jobId}`, token);
+      }
     } catch (err) {
       console.error(err);
       setMsg(

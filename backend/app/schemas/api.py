@@ -18,6 +18,7 @@ class JobCreateRequest(BaseModel):
 class JobCreateResponse(BaseModel):
     jobId: str
     status: str = "queued"
+    viewerToken: str | None = None
 
 
 class JobStatusResponse(BaseModel):
