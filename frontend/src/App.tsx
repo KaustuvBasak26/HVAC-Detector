@@ -13,6 +13,7 @@ import {
   type SortDir,
   type SortKey,
 } from "./jobUtils";
+import { secureDeployment } from "./secureDeployment";
 
 type JobStatus = {
   jobId: string;
@@ -295,6 +296,7 @@ export default function App() {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [activeNav, setActiveNav] = useState<NavPanel>("ingest");
   const [previewFullscreen, setPreviewFullscreen] = useState(false);
+  const [previewObjectUrl, setPreviewObjectUrl] = useState<string | null>(null);
 
   const previewCardRef = useRef<HTMLElement | null>(null);
   const ingestRef = useRef<HTMLElement | null>(null);
@@ -327,6 +329,35 @@ export default function App() {
     }
     return false;
   }, []);
+
+  useEffect(() => {
+    const url = result?.previewUrl || null;
+    if (!secureDeployment || !url) {
+      setPreviewObjectUrl(null);
+      return;
+    }
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    const src =
+      url && jobId ? `${url}?v=${encodeURIComponent(jobId)}&n=${previewNonce}` : url;
+    fetch(src, { credentials: "same-origin" })
+      .then((response) => {
+        if (!response.ok) throw new Error("preview unavailable");
+        return response.blob();
+      })
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setPreviewObjectUrl(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setPreviewObjectUrl(null);
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [result?.previewUrl, jobId, previewNonce]);
 
   useEffect(() => {
     if (!jobId || !busy) return;
@@ -449,8 +480,9 @@ export default function App() {
   }
 
   const previewUrl = result?.previewUrl || null;
-  const previewSrc =
-    previewUrl && jobId
+  const previewSrc = secureDeployment
+    ? previewObjectUrl
+    : previewUrl && jobId
       ? `${previewUrl}?v=${encodeURIComponent(jobId)}&n=${previewNonce}`
       : previewUrl;
 
@@ -458,7 +490,7 @@ export default function App() {
   const statusPillLabel = busy ? "Processing" : "Ready";
 
   return (
-    <div className="shell">
+    <div className={secureDeployment ? "shell shell--protected" : "shell"}>
       <header className="topbar">
         <div className="topbar__brand">
           <div className="topbar__mark" aria-hidden>
@@ -620,8 +652,10 @@ export default function App() {
                       >
                         <img
                           key={`${jobId}-${previewNonce}`}
-                          src={previewSrc}
+                          src={previewSrc ?? undefined}
                           alt="Annotated drawing with duct highlights"
+                          className={secureDeployment ? "preview-image preview-image--protected" : "preview-image"}
+                          draggable={false}
                           style={{ display: "block", maxWidth: "100%", height: "auto" }}
                         />
                       </TransformComponent>
@@ -633,6 +667,7 @@ export default function App() {
           )}
 
           {result &&
+            !secureDeployment &&
             (result.annotatedPdfUrl || Object.keys(result.exports || {}).length > 0) && (
               <section className="card">
                 <div className="section-head">

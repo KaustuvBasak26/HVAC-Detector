@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.security import assert_secure_job_output, secure_response_headers
 from app.models.db_models import DuctSegment, FileRecord, Job, JobOutput
 from app.schemas.api import (
     JobCreateRequest,
@@ -159,13 +160,21 @@ def get_result(job_id: str, db: Session = Depends(get_db)) -> JobResultResponse:
     labeled = sum(1 for s in segments if s.size_text)
     pages_done = len({s.page_number for s in segments}) if segments else (file_rec.page_count if file_rec else 1)
 
-    preview = f"/files/{outputs.get('annotated_png', '')}" if outputs.get("annotated_png") else None
-    pdf_url = f"/files/{outputs.get('annotated_pdf', '')}" if outputs.get("annotated_pdf") else None
-    exports = {}
-    if sk := outputs.get("segments_json"):
-        exports["json"] = f"/files/{sk}"
-    if sk := outputs.get("segments_csv"):
-        exports["csv"] = f"/files/{sk}"
+    preview = None
+    pdf_url = None
+    exports: dict[str, str] = {}
+    if sk := outputs.get("annotated_png"):
+        if settings.secure_deployment:
+            preview = f"/api/jobs/{job_id}/preview"
+        else:
+            preview = f"/files/{sk}"
+    if not settings.secure_deployment:
+        if sk := outputs.get("annotated_pdf"):
+            pdf_url = f"/files/{sk}"
+        if sk := outputs.get("segments_json"):
+            exports["json"] = f"/files/{sk}"
+        if sk := outputs.get("segments_csv"):
+            exports["csv"] = f"/files/{sk}"
 
     return JobResultResponse(
         jobId=job_id,
@@ -201,8 +210,32 @@ def get_segments(job_id: str, db: Session = Depends(get_db)) -> SegmentsListResp
     return SegmentsListResponse(segments=items)
 
 
+@router.get("/api/jobs/{job_id}/preview")
+def job_preview(job_id: str, db: Session = Depends(get_db)):
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job or job.status != "completed":
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND"})
+    outputs = {
+        o.output_type: o.storage_key
+        for o in db.query(JobOutput).filter(JobOutput.job_id == job_id)
+    }
+    png_key = outputs.get("annotated_png")
+    if not png_key:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND"})
+    path = assert_secure_job_output(job_id, png_key)
+    return FileResponse(
+        path,
+        media_type="image/png",
+        headers=secure_response_headers(inline=True),
+    )
+
+
 @router.get("/files/{full_path:path}")
 def serve_file(full_path: str):
+    if settings.secure_deployment:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND"})
+    if full_path.startswith("inputs/") or "/../" in full_path:
+        raise HTTPException(status_code=403, detail={"code": "FORBIDDEN"})
     path = settings.data_dir / full_path
     if not path.is_file():
         raise HTTPException(status_code=404)
@@ -223,15 +256,14 @@ def serve_file(full_path: str):
     return FileResponse(
         path,
         media_type=media,
-        headers={
-            "Cache-Control": "no-store, no-cache, must-revalidate",
-            "Pragma": "no-cache",
-        },
+        headers=secure_response_headers(inline=path.suffix.lower() in {".png", ".pdf"}),
     )
 
 
 @router.get("/api/admin/jobs")
 def admin_jobs(db: Session = Depends(get_db)):
+    if settings.secure_deployment:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND"})
     jobs = db.query(Job).order_by(Job.created_at.desc()).limit(50).all()
     return {
         "jobs": [

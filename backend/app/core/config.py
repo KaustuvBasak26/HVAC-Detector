@@ -50,5 +50,8 @@ class Settings(BaseSettings):
     annotation_fill_alpha: float = 0.52
     default_feet_per_drawing_inch: float | None = 4.0
 
+    # Production hardening for public deployments (Render, etc.).
+    secure_deployment: bool = False
+
 
 settings = Settings()

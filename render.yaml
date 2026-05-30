@@ -18,5 +18,7 @@ services:
     envVars:
       - key: HVAC_DATA_DIR
         value: /data
+      - key: HVAC_SECURE_DEPLOYMENT
+        value: "true"
       - key: PYTHONUNBUFFERED
         value: "1"

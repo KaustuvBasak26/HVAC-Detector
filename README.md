@@ -191,6 +191,22 @@ Every push to **`main`** triggers a new deploy (`autoDeployTrigger: commit`). Th
 - **Cold starts** — the service sleeps after ~15 minutes of idle traffic; the first request after sleep can take 30–60 seconds.
 - **512 MB RAM** — enough for typical PDFs; very large sheets or many concurrent jobs may run out of memory. Upgrade to Starter if needed.
 
+### Production hardening (enabled on Render)
+
+`HVAC_SECURE_DEPLOYMENT=true` and `VITE_SECURE_DEPLOYMENT=true` (set in `render.yaml` and `Dockerfile.render`) apply:
+
+| Protection | Effect |
+|------------|--------|
+| No `/files/...` URLs | Direct file paths are disabled; preview is served only via `/api/jobs/{jobId}/preview` |
+| No export downloads | PDF / JSON / CSV download links are hidden in the UI |
+| No API docs | `/docs`, `/redoc`, and `/openapi.json` return 404 |
+| No admin API | `/api/admin/jobs` returns 404 |
+| Security headers | CSP, `X-Frame-Options`, `Referrer-Policy`, etc. |
+| No source maps | Production frontend build omits JS source maps |
+| UI friction | Right-click, view-source shortcut, and devtools shortcuts are blocked in the browser (deterrent only — not cryptographically enforceable) |
+
+**Important:** Any web app must send HTML/JS to the browser, so a determined user can still inspect network traffic or recover minified client code. This mode reduces casual downloading, browsing, and leakage of storage paths — it does not make the client secret.
+
 To keep data across deploys later, add a [persistent disk](https://render.com/docs/disks) on a paid plan and mount it at `/data` in `render.yaml`.
 
 ### Manual deploy (without Blueprint)

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import io
 
+from fastapi.testclient import TestClient
+
 
 def test_health(client):
     r = client.get("/api/health")
@@ -88,3 +90,28 @@ def test_admin_jobs_list(client):
     r = client.get("/api/admin/jobs")
     assert r.status_code == 200
     assert "jobs" in r.json()
+
+
+def test_secure_deployment_blocks_public_files_and_admin(monkeypatch):
+    monkeypatch.setenv("HVAC_SECURE_DEPLOYMENT", "true")
+    from importlib import reload
+
+    import app.api.routes as routes_mod
+    import app.core.config as config_mod
+    import app.main as main_mod
+
+    reload(config_mod)
+    reload(routes_mod)
+    reload(main_mod)
+
+    with TestClient(main_mod.app) as secure_client:
+        assert secure_client.get("/openapi.json").status_code == 404
+        assert secure_client.get("/docs").status_code == 404
+        assert secure_client.get("/api/admin/jobs").status_code == 404
+        assert secure_client.get("/files/jobs/x/outputs/a.png").status_code == 404
+        assert secure_client.get("/robots.txt").status_code == 200
+
+    monkeypatch.delenv("HVAC_SECURE_DEPLOYMENT", raising=False)
+    reload(config_mod)
+    reload(routes_mod)
+    reload(main_mod)

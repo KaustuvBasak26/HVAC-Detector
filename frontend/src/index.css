@@ -843,3 +843,22 @@ table.data tr:last-child td {
     display: none;
   }
 }
+
+.shell--protected {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.shell--protected input,
+.shell--protected textarea,
+.shell--protected select,
+.shell--protected label {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.preview-image--protected {
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
