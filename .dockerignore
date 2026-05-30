@@ -20,7 +20,6 @@ backend/tests
 *.docx
 *.pdf
 !data/testset2.pdf
-!Software Requirements Document.pdf
 High Level Design_extracted.txt
 Low Level Design_extracted.txt
 Software Requirements Document_extracted.txt

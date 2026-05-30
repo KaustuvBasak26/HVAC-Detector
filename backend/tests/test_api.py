@@ -104,9 +104,9 @@ def test_sample_pdf_list_and_download(client):
     body = listing.json()
     assert body["supportedTypes"] == ["application/pdf"]
     assert body["maxUploadSizeMb"] >= 1
-    assert body["samples"][0]["id"] == "software-requirements-document"
+    assert body["samples"][0]["id"] == "testset2"
 
-    sample = client.get("/api/samples/software-requirements-document")
+    sample = client.get("/api/samples/testset2")
     assert sample.status_code == 200
     assert sample.headers["content-type"].startswith("application/pdf")
     assert len(sample.content) > 1000

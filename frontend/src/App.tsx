@@ -565,10 +565,9 @@ export default function App() {
           <header className="page-header" ref={ingestRef} id="workspace-ingest">
             <h1 className="page-header__title">Mechanical drawing analysis</h1>
             <p className="page-header__lead">
-              Upload your own mechanical HVAC / MEP plan PDF, or try the bundled sample below to test
-              the pipeline. Supported type: <strong>PDF only</strong> (max 100&nbsp;MB). The sample
-              document exercises upload and processing; for meaningful duct detection, use your own
-              mechanical drawing.
+              Upload your own mechanical HVAC / MEP plan PDF, or try the bundled{" "}
+              <strong>testset2.pdf</strong> sample below. Supported type:{" "}
+              <strong>PDF only</strong> (max 100&nbsp;MB).
             </p>
           </header>
 

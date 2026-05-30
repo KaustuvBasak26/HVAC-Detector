@@ -7,10 +7,10 @@ export type SamplePdf = {
 };
 
 export const DEFAULT_SAMPLE: SamplePdf = {
-  id: "software-requirements-document",
-  name: "Software Requirements Document.pdf",
-  description: "Bundled sample PDF to try the upload and analysis flow.",
-  downloadUrl: "/api/samples/software-requirements-document",
+  id: "testset2",
+  name: "testset2.pdf",
+  description: "Mechanical HVAC floor plan bundled with the project for demo duct detection.",
+  downloadUrl: "/api/samples/testset2",
   available: true,
 };
 

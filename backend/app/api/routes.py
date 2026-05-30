@@ -6,7 +6,13 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Up
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.core.config import settings, resolved_sample_pdf_path
+from app.core.config import settings
+from app.core.samples import (
+    SAMPLE_PDF_DESCRIPTION,
+    SAMPLE_PDF_FILENAME,
+    SAMPLE_PDF_ID,
+    resolved_sample_pdf_path,
+)
 from app.core.database import get_db
 from app.core.security import assert_job_output_path, resolve_data_file, secure_response_headers
 from app.core.viewer_token import create_viewer_token
@@ -51,10 +57,10 @@ def list_samples():
         "maxUploadSizeMb": settings.max_upload_size_mb,
         "samples": [
             {
-                "id": "software-requirements-document",
-                "name": "Software Requirements Document.pdf",
-                "description": "Bundled sample PDF to try the upload and analysis flow.",
-                "downloadUrl": "/api/samples/software-requirements-document",
+                "id": SAMPLE_PDF_ID,
+                "name": SAMPLE_PDF_FILENAME,
+                "description": SAMPLE_PDF_DESCRIPTION,
+                "downloadUrl": f"/api/samples/{SAMPLE_PDF_ID}",
                 "available": available,
             }
         ],
@@ -63,7 +69,7 @@ def list_samples():
 
 @router.get("/api/samples/{sample_id}")
 def download_sample(sample_id: str):
-    if sample_id != "software-requirements-document":
+    if sample_id != SAMPLE_PDF_ID:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND"})
     path = resolved_sample_pdf_path()
     if not path.is_file():
@@ -71,10 +77,10 @@ def download_sample(sample_id: str):
     return FileResponse(
         path,
         media_type="application/pdf",
-        filename="Software Requirements Document.pdf",
+        filename=SAMPLE_PDF_FILENAME,
         headers={
             "Cache-Control": "public, max-age=86400",
-            "Content-Disposition": 'attachment; filename="Software Requirements Document.pdf"',
+            "Content-Disposition": f'attachment; filename="{SAMPLE_PDF_FILENAME}"',
         },
     )
 
