@@ -15,6 +15,7 @@ import {
 } from "./jobUtils";
 import { secureDeployment } from "./secureDeployment";
 import { jobViewerHeaders } from "./jobApi";
+import { DEFAULT_SAMPLE, fetchSamplePdfFile } from "./samplePdf";
 
 type JobStatus = {
   jobId: string;
@@ -299,6 +300,7 @@ export default function App() {
   const [previewFullscreen, setPreviewFullscreen] = useState(false);
   const [previewObjectUrl, setPreviewObjectUrl] = useState<string | null>(null);
   const [viewerToken, setViewerToken] = useState<string | null>(null);
+  const [sampleBusy, setSampleBusy] = useState(false);
 
   const previewCardRef = useRef<HTMLElement | null>(null);
   const ingestRef = useRef<HTMLElement | null>(null);
@@ -434,6 +436,19 @@ export default function App() {
     return rows;
   }, [segments, segmentQuery, typeFilter, sortKey, sortDir]);
 
+  async function onUseSamplePdf() {
+    setMsg(null);
+    setSampleBusy(true);
+    try {
+      const sampleFile = await fetchSamplePdfFile();
+      setFile(sampleFile);
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "Could not load the sample PDF.");
+    } finally {
+      setSampleBusy(false);
+    }
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
@@ -550,11 +565,45 @@ export default function App() {
           <header className="page-header" ref={ingestRef} id="workspace-ingest">
             <h1 className="page-header__title">Mechanical drawing analysis</h1>
             <p className="page-header__lead">
-              Upload a mechanical PDF. The pipeline detects duct runs, matches nearby size callouts,
-              estimates lengths from scale text (or a default drawing scale), and produces highlighted
-              previews plus PDF, JSON, and CSV exports.
+              Upload your own mechanical HVAC / MEP plan PDF, or try the bundled sample below to test
+              the pipeline. Supported type: <strong>PDF only</strong> (max 100&nbsp;MB). The sample
+              document exercises upload and processing; for meaningful duct detection, use your own
+              mechanical drawing.
             </p>
           </header>
+
+          <section className="card upload-helper" aria-labelledby="upload-helper-title">
+            <div className="upload-helper__head">
+              <h2 className="upload-helper__title" id="upload-helper-title">
+                Get started
+              </h2>
+              <p className="upload-helper__desc">
+                Download or load the sample PDF, then click <strong>Run analysis</strong>. Or choose
+                your own file below.
+              </p>
+            </div>
+            <div className="upload-helper__actions">
+              <a
+                className="btn btn--ghost"
+                href={DEFAULT_SAMPLE.downloadUrl}
+                download={DEFAULT_SAMPLE.name}
+              >
+                Download sample PDF
+              </a>
+              <button
+                className="btn btn--ghost"
+                type="button"
+                disabled={busy || sampleBusy}
+                onClick={() => void onUseSamplePdf()}
+              >
+                {sampleBusy ? "Loading sample…" : "Use sample PDF"}
+              </button>
+            </div>
+            <p className="upload-helper__meta">
+              Sample: {DEFAULT_SAMPLE.name} · Supported uploads: <code>.pdf</code> (
+              <code>application/pdf</code>)
+            </p>
+          </section>
 
           <form className="card card--upload" onSubmit={onSubmit} noValidate>
             <label className="file-input__label">
@@ -563,14 +612,20 @@ export default function App() {
                 type="file"
                 accept="application/pdf,.pdf"
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                aria-label="Choose PDF file"
+                aria-label="Choose your own PDF file"
               />
-              <span>{file ? file.name : "Choose PDF…"}</span>
+              <span>{file ? file.name : "Choose your PDF…"}</span>
             </label>
-            <button className="btn" type="submit" disabled={busy}>
+            <button className="btn" type="submit" disabled={busy || !file}>
               {busy ? "Processing…" : "Run analysis"}
             </button>
           </form>
+
+          {!file && !busy && (
+            <p className="upload-empty-hint">
+              No file selected yet. Use the sample above or choose your own mechanical plan PDF.
+            </p>
+          )}
 
           {msg && <div className="alert">{msg}</div>}
 

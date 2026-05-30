@@ -54,6 +54,16 @@ class Settings(BaseSettings):
     secure_deployment: bool = False
     viewer_token_secret: str = ""
     viewer_token_ttl_seconds: int = 86_400
+    sample_pdf_path: Path = Path(__file__).resolve().parents[3] / "Software Requirements Document.pdf"
 
 
 settings = Settings()
+
+
+def resolved_sample_pdf_path() -> Path:
+    docker_path = Path(__file__).resolve().parents[2] / "samples" / "software-requirements-document.pdf"
+    if docker_path.is_file():
+        return docker_path
+    if settings.sample_pdf_path.is_file():
+        return settings.sample_pdf_path
+    return settings.sample_pdf_path

@@ -6,7 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Up
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
+from app.core.config import settings, resolved_sample_pdf_path
 from app.core.database import get_db
 from app.core.security import assert_job_output_path, resolve_data_file, secure_response_headers
 from app.core.viewer_token import create_viewer_token
@@ -40,6 +40,43 @@ def _run_job_background(
         process_job_sync(db, job_id, page_selection_mode, page_numbers, output_formats)
     finally:
         db.close()
+
+
+@router.get("/api/samples")
+def list_samples():
+    path = resolved_sample_pdf_path()
+    available = path.is_file()
+    return {
+        "supportedTypes": ["application/pdf"],
+        "maxUploadSizeMb": settings.max_upload_size_mb,
+        "samples": [
+            {
+                "id": "software-requirements-document",
+                "name": "Software Requirements Document.pdf",
+                "description": "Bundled sample PDF to try the upload and analysis flow.",
+                "downloadUrl": "/api/samples/software-requirements-document",
+                "available": available,
+            }
+        ],
+    }
+
+
+@router.get("/api/samples/{sample_id}")
+def download_sample(sample_id: str):
+    if sample_id != "software-requirements-document":
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND"})
+    path = resolved_sample_pdf_path()
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Sample PDF missing."})
+    return FileResponse(
+        path,
+        media_type="application/pdf",
+        filename="Software Requirements Document.pdf",
+        headers={
+            "Cache-Control": "public, max-age=86400",
+            "Content-Disposition": 'attachment; filename="Software Requirements Document.pdf"',
+        },
+    )
 
 
 @router.post("/api/files/upload", response_model=UploadResponse)

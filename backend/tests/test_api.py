@@ -98,6 +98,24 @@ def test_admin_jobs_list(client):
     assert "jobs" in r.json()
 
 
+def test_sample_pdf_list_and_download(client):
+    listing = client.get("/api/samples")
+    assert listing.status_code == 200
+    body = listing.json()
+    assert body["supportedTypes"] == ["application/pdf"]
+    assert body["maxUploadSizeMb"] >= 1
+    assert body["samples"][0]["id"] == "software-requirements-document"
+
+    sample = client.get("/api/samples/software-requirements-document")
+    assert sample.status_code == 200
+    assert sample.headers["content-type"].startswith("application/pdf")
+    assert len(sample.content) > 1000
+
+
+def test_sample_pdf_unknown_id(client):
+    assert client.get("/api/samples/not-a-sample").status_code == 404
+
+
 @pytest.fixture
 def secure_client(monkeypatch):
     monkeypatch.setenv("HVAC_SECURE_DEPLOYMENT", "true")

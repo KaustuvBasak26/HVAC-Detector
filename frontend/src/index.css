@@ -266,6 +266,43 @@ button.nav-item {
   gap: 1rem;
 }
 
+.upload-helper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.upload-helper__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.upload-helper__desc,
+.upload-helper__meta,
+.upload-empty-hint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.upload-helper__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.upload-helper__meta code {
+  font-size: 0.8em;
+}
+
+.upload-empty-hint {
+  margin-top: -0.35rem;
+  margin-bottom: 1rem;
+  font-size: 0.82rem;
+}
+
 .sr-only-input {
   position: absolute;
   width: 1px;

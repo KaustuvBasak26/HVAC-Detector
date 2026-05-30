@@ -29,6 +29,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/app ./app
 COPY --from=frontend-build /app/dist ./static
 COPY ["Sample annotation.png", "/Sample annotation.png"]
+COPY ["Software Requirements Document.pdf", "/app/samples/software-requirements-document.pdf"]
 
 ENV PYTHONUNBUFFERED=1
 ENV HVAC_DATA_DIR=/data
