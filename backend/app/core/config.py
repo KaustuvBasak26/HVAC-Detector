@@ -54,6 +54,17 @@ class Settings(BaseSettings):
     secure_deployment: bool = False
     viewer_token_secret: str = ""
     viewer_token_ttl_seconds: int = 86_400
+    # Render Free (512 MB): keep rasterization and exports lightweight.
+    low_memory_mode: bool = False
+    low_memory_max_dpi: int = 120
+    low_memory_max_pages: int = 1
 
 
 settings = Settings()
+
+
+def effective_render_dpi() -> int:
+    dpi = int(settings.render_dpi)
+    if settings.low_memory_mode:
+        return min(dpi, int(settings.low_memory_max_dpi))
+    return dpi

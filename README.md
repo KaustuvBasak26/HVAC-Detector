@@ -189,7 +189,8 @@ Every push to **`main`** triggers a new deploy (`autoDeployTrigger: commit`). Th
 - **No cost** for the web service itself within Render’s Free allowance (750 instance-hours/month).
 - **No persistent disk** — `HVAC_DATA_DIR=/data` uses the container filesystem. Uploads, job history, and exports are **lost on redeploy** or when Render replaces the instance.
 - **Cold starts** — the service sleeps after ~15 minutes of idle traffic; the first request after sleep can take 30–60 seconds.
-- **512 MB RAM** — enough for typical PDFs; very large sheets or many concurrent jobs may run out of memory. Upgrade to Starter if needed.
+- **512 MB RAM** — OpenCV/PDF work is memory-heavy. The Render blueprint sets `HVAC_LOW_MEMORY_MODE=true` and `HVAC_RENDER_DPI=120` so `testset2.pdf` fits; very large sheets may still OOM on Free. Upgrade to Starter if needed.
+- **Ephemeral jobs** — if the instance restarts mid-analysis (OOM or deploy), in-progress jobs are lost; the UI will ask you to run again.
 
 ### Production hardening (enabled on Render)
 

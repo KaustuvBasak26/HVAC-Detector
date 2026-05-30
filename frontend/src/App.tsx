@@ -309,6 +309,23 @@ export default function App() {
   const poll = useCallback(async (id: string, token: string | null) => {
     const headers = jobViewerHeaders(token);
     const r = await fetch(`/api/jobs/${id}`, { headers });
+    if (r.status === 404) {
+      setBusy(false);
+      setMsg(
+        "Analysis was interrupted — the server restarted and lost in-progress work. Please run the analysis again.",
+      );
+      return true;
+    }
+    if (r.status === 401) {
+      setBusy(false);
+      setMsg("This analysis session expired. Please run the analysis again.");
+      return true;
+    }
+    if (!r.ok) {
+      setBusy(false);
+      setMsg("Could not read job status. Please try again.");
+      return true;
+    }
     const j = (await r.json()) as JobStatus;
     setStatus(j);
     if (j.status === "completed") {
@@ -484,11 +501,16 @@ export default function App() {
         body: JSON.stringify({
           fileId: uj.fileId,
           pageSelectionMode: "all",
-          outputFormats: ["png", "pdf", "json", "csv"],
+          outputFormats: secureDeployment ? ["png", "json"] : ["png", "pdf", "json", "csv"],
         }),
       });
       if (!cr.ok) {
-        setMsg("Could not start job");
+        const err = await cr.json().catch(() => ({}));
+        const d = (err as { detail?: unknown }).detail;
+        let message = "Could not start job";
+        if (d && typeof d === "object" && "message" in d)
+          message = String((d as { message?: string }).message);
+        setMsg(message);
         setBusy(false);
         return;
       }

@@ -22,5 +22,11 @@ services:
         value: "true"
       - key: HVAC_VIEWER_TOKEN_SECRET
         generateValue: true
+      - key: HVAC_LOW_MEMORY_MODE
+        value: "true"
+      - key: HVAC_RENDER_DPI
+        value: "120"
+      - key: HVAC_LOW_MEMORY_MAX_DPI
+        value: "120"
       - key: PYTHONUNBUFFERED
         value: "1"

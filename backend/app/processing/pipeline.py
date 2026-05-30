@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,7 +9,7 @@ import cv2
 import fitz
 import numpy as np
 
-from app.core.config import settings
+from app.core.config import settings, effective_render_dpi
 from app.processing.dimension_parser import ParsedDimension
 from app.processing.duct_measure_annotate import (
     draw_measure_overlay_bgr,
@@ -100,8 +101,11 @@ def run_pipeline_on_pdf(
         indices = _page_indices(doc, page_selection_mode, page_numbers or [])
         if not indices:
             indices = [0]
+        if settings.low_memory_mode and len(indices) > settings.low_memory_max_pages:
+            indices = indices[: settings.low_memory_max_pages]
         results: list[PagePipelineResult] = []
         total_pages = len(indices)
+        render_dpi = effective_render_dpi()
         expected_path = Path(settings.expected_annotation_png)
         bbox = _parse_screenshot_bbox(settings.refine_screenshot_page_bbox)
         refine_target = int(settings.refine_expected_png_target_page)
@@ -118,14 +122,15 @@ def run_pipeline_on_pdf(
                     pct,
                     f"Page {pos + 1} of {total_pages}: rendering and centerline overlay",
                 )
-            pr = render_page(doc, idx, settings.render_dpi)
+            pr = render_page(doc, idx, render_dpi)
             # NumPy/OpenCV images are (height, width, ...); keep names consistent everywhere.
             ih, iw = pr.image_bgr.shape[:2]
             page = doc[idx]
             line_ann = extract_line_annotations_pixel(page, pr.scale_x, pr.scale_y)
 
             use_cal_mask = (
-                expected_path.is_file()
+                not settings.low_memory_mode
+                and expected_path.is_file()
                 and refine_target > 0
                 and (idx + 1) == refine_target
             )
@@ -189,6 +194,9 @@ def run_pipeline_on_pdf(
                     min(82, pct_done),
                     f"Page {pos + 1} of {total_pages}: annotations ready",
                 )
+            if settings.low_memory_mode:
+                del mask, pr, line_ann, words
+                gc.collect()
         return results
     finally:
         doc.close()

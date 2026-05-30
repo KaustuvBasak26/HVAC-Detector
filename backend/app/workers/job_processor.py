@@ -1,3 +1,4 @@
+import gc
 import json
 from datetime import datetime
 
@@ -48,6 +49,8 @@ def process_job_sync(
     db.commit()
 
     out_fmt = list(output_formats or ["png", "pdf", "json", "csv"])
+    if settings.low_memory_mode:
+        out_fmt = [fmt for fmt in out_fmt if fmt in {"png", "json"}]
     if "png" not in out_fmt:
         out_fmt.insert(0, "png")
 
@@ -136,6 +139,8 @@ def process_job_sync(
     job.completed_at = datetime.utcnow()
     job.updated_at = datetime.utcnow()
     db.commit()
+    del results
+    gc.collect()
 
 
 def _fail(db: Session, job: Job, code: str, message: str) -> None:

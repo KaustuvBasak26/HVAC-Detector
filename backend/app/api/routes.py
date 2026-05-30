@@ -145,6 +145,20 @@ def create_job(
     f = db.query(FileRecord).filter(FileRecord.id == body.fileId).first()
     if not f:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "fileId"})
+    if settings.low_memory_mode:
+        active = (
+            db.query(Job)
+            .filter(Job.status.in_(("queued", "processing")))
+            .count()
+        )
+        if active > 0:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "SERVER_BUSY",
+                    "message": "Another analysis is already running. Wait for it to finish, then try again.",
+                },
+            )
     user_id = ensure_local_user(db)
     job_id = str(uuid.uuid4())
     job = Job(
@@ -158,6 +172,8 @@ def create_job(
     db.add(job)
     db.commit()
     out_fmt = list(body.outputFormats or ["png", "pdf", "json", "csv"])
+    if settings.low_memory_mode:
+        out_fmt = [fmt for fmt in out_fmt if fmt in {"png", "json"}]
     if "png" not in out_fmt:
         out_fmt.insert(0, "png")
     background_tasks.add_task(
